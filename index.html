@@ -12,10 +12,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        /* 스크롤바 디자인 */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* 토스트 메시지 애니메이션 */
         .toast-enter { animation: fade-in-up 0.3s ease-out forwards; }
         .toast-leave { animation: fade-out-down 0.3s ease-in forwards; }
         @keyframes fade-in-up {
@@ -36,7 +38,7 @@
                 개발자:가치있는 미래교육 연구소 대표 김병찬
             </div>
             <h1 id="header-title" class="text-lg sm:text-xl font-bold text-center w-full truncate">
-                <i class="fas fa-spinner fa-spin mr-2"></i>서버 연결 중...
+                <i class="fas fa-spinner fa-spin mr-2"></i>앱 설정 불러오는 중...
             </h1>
             <button id="btn-show-speaker-login" class="absolute right-4 top-1/2 transform -translate-y-1/2 text-indigo-100 hover:text-white transition p-2" title="강사용 모드">
                 <i class="fas fa-user-shield"></i>
@@ -44,7 +46,7 @@
         </div>
     </header>
 
-    <main class="w-full max-w-4xl flex-1 flex flex-col p-4 sm:p-6">
+    <main class="w-full max-w-4xl flex-1 flex flex-col p-4 sm:p-6 w-full">
         
         <!-- 청중용 화면 (기본) -->
         <div id="audience-view" class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-7 flex flex-col gap-4 animate-fade-in">
@@ -76,13 +78,14 @@
                     <i class="fas fa-arrow-left mr-1"></i> 청중 모드
                 </button>
                 <div class="flex items-center gap-2 text-sm text-slate-500">
-                    <i id="sync-icon" class="fas fa-sync-alt fa-spin mr-1 text-xs"></i> <span id="sync-text">실시간 동기화 중</span>
+                    <i class="fas fa-sync-alt fa-spin mr-1 text-xs"></i> 실시간 동기화 중
                 </div>
                 <a id="btn-go-sheet" href="#" target="_blank" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium px-4 py-2 rounded-lg transition text-sm sm:text-base flex items-center gap-2 shadow-sm">
                     <i class="fas fa-table"></i> 데이터서버
                 </a>
             </div>
             
+            <!-- 데이터 리스트 -->
             <div id="data-list-container" class="flex flex-col gap-3">
                 <div class="text-center py-10 text-slate-400">
                     <i class="fas fa-inbox text-4xl mb-3"></i>
@@ -93,7 +96,7 @@
 
     </main>
 
-    <!-- 관리자 인증 모달 -->
+    <!-- 커스텀 인증번호 모달 -->
     <div id="pin-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden transform scale-95 transition-transform duration-200">
             <div class="p-6">
@@ -109,19 +112,19 @@
     </div>
 
     <!-- 토스트 메시지 컨테이너 -->
-    <div id="toast-container" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-max max-w-[90vw]"></div>
+    <div id="toast-container" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
     <script>
-        // =========================================================================
-        // [중요] 구글 앱스 스크립트 웹 앱 배포 URL을 여기에 입력하세요!
-        // =========================================================================
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyf1s4brz_dA8zs1Gt_s3oUVXqnBx2P8SrQBElpnmlCaAn4Qi2KxCvs6UXkjWHP4kyQ/exec'; // <-- 배포 후 생성된 URL로 반드시 교체하세요.
-
-        let appConfig = { pin: '', title: '설정 불러오기 실패', sheetUrl: '#' };
-        let currentMode = 'audience';
+        // 전역 변수
+        // 👇👇👇 중요: 아래 따옴표 안에 구글 앱스 스크립트에서 복사한 '웹앱 URL'을 반드시 붙여넣으세요! 👇👇👇
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyf1s4brz_dA8zs1Gt_s3oUVXqnBx2P8SrQBElpnmlCaAn4Qi2KxCvs6UXkjWHP4kyQ/exec'; 
+        // 예시: const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
+        
+        let appConfig = { pin: '0000', title: '설정 불러오는 중...', sheetUrl: '#' };
+        let currentMode = 'audience'; // 'audience' | 'speaker'
         let syncInterval = null;
 
-        // DOM Elements
+        // DOM 요소
         const titleEl = document.getElementById('header-title');
         const viewAudience = document.getElementById('audience-view');
         const viewSpeaker = document.getElementById('speaker-view');
@@ -129,60 +132,39 @@
         const btnSubmit = document.getElementById('btn-submit');
         const inputName = document.getElementById('input-name');
         const inputContent = document.getElementById('input-content');
-
+        
+        // 초기화
         window.onload = () => {
-            if (SCRIPT_URL.includes('AKfycb')) { // 임시 문자열 확인
-                showToast('경고: 구글 스크립트 URL이 설정되지 않았습니다.', 'error');
-                titleEl.innerHTML = '<i class="fas fa-exclamation-triangle text-amber-300 mr-2"></i>URL 설정 필요';
-            } else {
-                fetchAppConfig();
-            }
+            initApp();
             setupEventListeners();
         };
 
-        // API 통신 함수 (GET/POST)
-        async function fetchAPI(action, payload = null) {
-            try {
-                let url = `${SCRIPT_URL}?action=${action}`;
-                let options = { method: 'GET' };
-
-                if (payload) {
-                    // CORS 우회를 위해 text/plain을 사용하여 POST 전송
-                    options = {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ action: action, ...payload })
-                    };
-                }
-
-                const response = await fetch(url, options);
-                if (!response.ok) throw new Error('네트워크 응답이 올바르지 않습니다.');
-                return await response.json();
-            } catch (error) {
-                console.error("API Fetch Error:", error);
-                throw error;
+        function initApp() {
+            if (!SCRIPT_URL || SCRIPT_URL.trim() === '') {
+                titleEl.innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-300 mr-2"></i>URL 설정 필요';
+                showToast('코드 내에 SCRIPT_URL을 입력해주세요.', 'error');
+                return;
             }
-        }
 
-        async function fetchAppConfig() {
-            try {
-                const config = await fetchAPI('getConfig');
-                if (config.error) throw new Error(config.error);
-                
-                appConfig = config;
-                titleEl.innerText = config.title;
-                document.getElementById('btn-go-sheet').href = config.sheetUrl;
-            } catch (error) {
-                showToast('앱 설정을 불러오는데 실패했습니다.', 'error');
-                titleEl.innerText = '서버 연결 실패';
-            }
+            fetch(`${SCRIPT_URL}?action=getConfig`, { redirect: 'follow' })
+                .then(response => response.json())
+                .then(config => {
+                    appConfig = config;
+                    titleEl.innerText = config.title;
+                    document.getElementById('btn-go-sheet').href = config.sheetUrl;
+                })
+                .catch(err => {
+                    showToast('설정을 불러오는데 실패했습니다.', 'error');
+                    titleEl.innerText = '서버 연결 오류';
+                });
         }
 
         function setupEventListeners() {
             btnSubmit.addEventListener('click', submitData);
-            btnShowSpeaker.addEventListener('click', showPinModal);
+            btnShowSpeaker.addEventListener('click', () => showPinModal());
             document.getElementById('btn-back-audience').addEventListener('click', switchMode.bind(null, 'audience'));
             
+            // 모달 이벤트
             document.getElementById('btn-cancel-pin').addEventListener('click', hidePinModal);
             document.getElementById('btn-confirm-pin').addEventListener('click', verifyPin);
             document.getElementById('input-pin').addEventListener('keypress', (e) => {
@@ -190,7 +172,11 @@
             });
         }
 
-        async function submitData() {
+        function submitData() {
+            if (!SCRIPT_URL || SCRIPT_URL.trim() === '') {
+                return showToast('서버 URL이 설정되지 않았습니다.', 'error');
+            }
+
             const name = inputName.value.trim();
             const content = inputContent.value.trim();
 
@@ -200,21 +186,34 @@
             btnSubmit.disabled = true;
             btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
 
-            try {
-                const result = await fetchAPI('submit', { name: name, content: content });
-                if (result.success) {
+            // CORS(Cross-Origin) 에러 방지를 위해 text/plain으로 전송합니다.
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+                body: JSON.stringify({ action: 'submit', name: name, content: content })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
                     showToast('성공적으로 전송되었습니다!', 'success');
                     inputName.value = '';
                     inputContent.value = '';
                 } else {
-                    throw new Error('전송 실패');
+                    showToast('전송에 실패했습니다.', 'error');
                 }
-            } catch (error) {
-                showToast('데이터 전송 중 오류가 발생했습니다.', 'error');
-            } finally {
-                btnSubmit.disabled = false;
-                btnSubmit.innerHTML = '<i class="fas fa-paper-plane"></i> 전송하기';
-            }
+            })
+            .catch(err => {
+                showToast('네트워크 오류가 발생했습니다.', 'error');
+            })
+            .finally(() => {
+                resetSubmitButton();
+            });
+        }
+
+        function resetSubmitButton() {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="fas fa-paper-plane"></i> 전송하기';
         }
 
         function switchMode(mode) {
@@ -225,6 +224,7 @@
                 viewSpeaker.classList.add('flex');
                 btnShowSpeaker.classList.add('hidden');
                 startSync();
+                fetchData();
             } else {
                 viewSpeaker.classList.add('hidden');
                 viewSpeaker.classList.remove('flex');
@@ -235,30 +235,28 @@
         }
 
         function startSync() {
-            fetchData(); // 즉시 1회 실행
-            syncInterval = setInterval(fetchData, 3000); // 3초마다 동기화
+            if (syncInterval) clearInterval(syncInterval);
+            syncInterval = setInterval(fetchData, 3000); 
         }
 
         function stopSync() {
             if (syncInterval) clearInterval(syncInterval);
         }
 
-        async function fetchData() {
-            const syncIcon = document.getElementById('sync-icon');
-            try {
-                syncIcon.classList.add('fa-spin');
-                const data = await fetchAPI('getData');
-                renderDataList(data);
-            } catch (error) {
-                console.error('동기화 실패:', error);
-            } finally {
-                setTimeout(() => syncIcon.classList.remove('fa-spin'), 500); // 스핀 효과 유지를 위한 딜레이
-            }
+        function fetchData() {
+            if (!SCRIPT_URL || SCRIPT_URL.trim() === '') return;
+
+            fetch(`${SCRIPT_URL}?action=getData`, { redirect: 'follow' })
+                .then(response => response.json())
+                .then(dataArray => {
+                    renderDataList(dataArray);
+                })
+                .catch(err => console.error('Data fetch error:', err));
         }
 
         function renderDataList(dataArray) {
             const container = document.getElementById('data-list-container');
-            if (!dataArray || dataArray.length === 0 || dataArray.error) {
+            if (!dataArray || dataArray.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-10 text-slate-400 bg-white rounded-xl shadow-sm border border-slate-200">
                         <i class="fas fa-inbox text-4xl mb-3"></i>
@@ -272,9 +270,10 @@
                 const card = document.createElement('div');
                 card.className = 'bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition relative group';
                 
+                // 데이터 내용 안전하게 렌더링 (XSS 방지)
                 const safeName = escapeHtml(item.name);
                 const safeContent = escapeHtml(item.content).replace(/\n/g, '<br>');
-                const rawContent = escapeQuotes(item.content);
+                const rawContent = escapeQuotes(item.content); // 복사용 원본 텍스트
 
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
@@ -294,12 +293,14 @@
             });
         }
 
+        // 커스텀 모달 (prompt 대체)
         const pinModal = document.getElementById('pin-modal');
         const inputPin = document.getElementById('input-pin');
         
         function showPinModal() {
             pinModal.classList.remove('hidden');
             pinModal.classList.add('flex');
+            // 애니메이션 스케일 업
             setTimeout(() => pinModal.children[0].classList.replace('scale-95', 'scale-100'), 10);
             inputPin.value = '';
             inputPin.focus();
@@ -326,10 +327,12 @@
             }
         }
 
+        // 클립보드 복사 유틸리티 (모바일 호환성 강화)
         function copyToClipboard(text) {
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text).then(() => showToast('내용이 복사되었습니다.', 'success'));
             } else {
+                // 구형 브라우저 또는 iframe 보안 대응
                 const textArea = document.createElement("textarea");
                 textArea.value = text;
                 textArea.style.position = "fixed";
@@ -347,6 +350,7 @@
             }
         }
 
+        // 토스트 메시지 유틸리티 (alert 대체)
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -357,8 +361,8 @@
             if (type === 'error') { bgClass = 'bg-red-500'; icon = 'fa-exclamation-circle'; }
             if (type === 'warning') { bgClass = 'bg-amber-500'; icon = 'fa-exclamation-triangle'; }
 
-            toast.className = `toast-enter flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-white font-medium shadow-lg text-sm w-full sm:w-auto ${bgClass}`;
-            toast.innerHTML = `<i class="fas ${icon} shrink-0"></i> <span>${message}</span>`;
+            toast.className = `toast-enter flex items-center gap-3 px-4 py-3 rounded-xl text-white font-medium shadow-lg text-sm ${bgClass}`;
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span>${message}</span>`;
             
             container.appendChild(toast);
 
@@ -368,6 +372,7 @@
             }, 2500);
         }
 
+        // XSS 방지 유틸
         function escapeHtml(unsafe) {
             if(!unsafe) return '';
             return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
